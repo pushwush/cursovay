@@ -1,0 +1,229 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <ctype.h> //для работы с символами
+#include <conio.h>// для работы с юникодом
+
+#define MAX_WORDS 100
+#define MAX_LEN 20
+#define MAX_SIZE 20
+
+typedef struct {
+    char word[MAX_LEN];  // Само слово
+    int x, y;            // Координаты в сетке, координаты первой буквы
+    int direction;       // Направление (0/1), где 0 - горизонталь, 1 - вертикаль ну так если ты вдруг не понял
+    int placed;          // Флаг размещения, где 0, если оно не размещено, 1 соответсвенно если ты не понял значит размещено 
+} Word;
+
+Word words[MAX_WORDS]; // Массив структур Word типо нужно для хранения информации о каждом слове по ходу оноведь будет занимать: Текст слова, его положение в кроссворде и статус (1/0)
+int word_count = 0;
+
+char grid[MAX_SIZE][MAX_SIZE];  // Двумерный массив символов, здесь координать x и y будут взяты из Word и указывают на позиции в сетке
+int width = 15;                 // начальная ширина будет пока по умолчанию
+int height = 15;                // аналогично длина
+
+void clean_grid() { //ну чтобы поля сначала все были чисто доллорами
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            grid[i][j] = '$';
+        }
+    }
+}
+
+void print_grid() {
+    printf("\nТекущий кроссворд (%dx%d):\n", width, height);
+    
+    // Нумерация столбцов
+    printf("   ");
+    for (int j = 0; j < width; j++) { //для вывода верхней границы с нумерацией столбцов
+        printf("%2d ", j + 1);  // Нумерация столбцов 1, 2, 3...
+    }
+    printf("\n");
+    
+    // Сетка с номерами строк
+    for (int i = 0; i < height; i++) {//для вывода сетки с номерами строк
+        printf("%2d ", i + 1);  // Нумерация строк 1, 2, 3...
+        for (int j = 0; j < width; j++) {
+            printf(" %c ", grid[i][j]);  // это для символа в клетке
+        }
+        printf("\n");
+    }
+}
+
+int can_place_word(Word w) { //в общем говоря тупо проверяет поклеточно можно ли разместить слово, соответственно если да, то в след функции передается 1
+    // Проверка границ
+    if (w.direction == 0) {  // Горизонтально
+        if (w.x < 0 || w.x + strlen(w.word) > width || w.y < 0 || w.y >= height) {
+            return 0;
+        }
+    } else {  // Вертикально
+        if (w.y < 0 || w.y + strlen(w.word) > height || w.x < 0 || w.x >= width) {
+            return 0;
+        }
+    }
+
+    // Проверка конфликтов с уже имеющимися буквами
+    for (int i = 0; i < strlen(w.word); i++) {
+        char grid_char; // Получаем символ из сетки в зависимости от направления
+        if (w.direction == 0) {
+            grid_char = grid[w.y][w.x + i];  // Горизонтально 
+        } else {
+            grid_char = grid[w.y + i][w.x];  // Вертикально
+        }
+        
+        if (grid_char != '$' && grid_char != w.word[i]) {
+            return 0;
+        }
+    }
+    
+    return 1;
+}
+
+void place_word(Word w) {
+    if (w.direction == 0) {  // Горизонтально
+        for (int i = 0; i < strlen(w.word); i++) {
+            grid[w.y][w.x + i] = w.word[i];  // Заполняем буквами
+        }
+    } else {  // Вертикально
+        for (int i = 0; i < strlen(w.word); i++) {
+            grid[w.y + i][w.x] = w.word[i];
+        }
+    }
+}
+
+void add_word() {
+    if (word_count >= MAX_WORDS) {
+        printf("Достигнуто максимальное количество слов!\n");
+        return;
+    }
+    
+    printf("Введите слово: ");
+    scanf("%19s", words[word_count].word); //считываем слово
+    
+    // Преобразуем в верхний регистр
+    for (int i = 0; i < strlen(words[word_count].word); i++) {
+        words[word_count].word[i] = toupper(words[word_count].word[i]); // это преобразование в верхний регистр типо из а в А
+    }
+    
+    words[word_count].placed = 0;
+    word_count++;
+    printf("Слово добавлено. Всего слов: %d\n", word_count);
+}
+
+void test_place_word() {
+    if (word_count == 0) {
+        printf("Сначала добавьте слова!\n");
+        return;
+    }
+    
+    printf("Введите номер слова (1-%d): ", word_count);
+    int word_num;
+    scanf("%d", &word_num);
+    
+    if (word_num < 1 || word_num > word_count) {
+        printf("Неверный номер слова!\n");
+        return;
+    }
+    
+    Word test_word = words[word_num - 1];
+    printf("Введите X Y и направление (0-гориз., 1-верт.): ");
+    scanf("%d %d %d", &test_word.x, &test_word.y, &test_word.direction);
+    
+    // Переводим в 0-индексацию
+    test_word.x--;
+    test_word.y--;
+    
+    if (can_place_word(test_word)) {
+        printf("Слово \"%s\" можно разместить в этой позиции!\n", test_word.word);
+    } else {
+        printf("Нельзя разместить слово здесь.\n");
+    }
+}
+
+void confirm_place_word() {
+    if (word_count == 0) {
+        printf("Сначала добавьте слова!\n");
+        return;
+    }
+    
+    printf("Введите номер слова (1-%d): ", word_count);
+    int word_num;
+    scanf("%d", &word_num);
+    
+    if (word_num < 1 || word_num > word_count) {
+        printf("Неверный номер слова!\n");
+        return;
+    }
+    
+    Word *current_word = &words[word_num - 1];
+    printf("Введите X Y и направление (0-гориз., 1-верт.): ");
+    scanf("%d %d %d", &current_word->x, &current_word->y, &current_word->direction);
+    
+    // Переводим в 0-индексацию
+    current_word->x--;
+    current_word->y--;
+    
+    if (can_place_word(*current_word)) {
+        place_word(*current_word);
+        current_word->placed = 1;
+        printf("Слово \"%s\" успешно размещено!\n", current_word->word);
+    } else {
+        printf("Нельзя разместить слово в этой позиции!\n");
+    }
+}
+
+void print_menu() {
+    printf("\nМеню:\n");
+    printf("1. Очистить сетку\n");
+    printf("2. Добавить слово\n");
+    printf("3. Проверить возможность размещения слова\n");
+    printf("4. Разместить слово\n");
+    printf("5. Показать сетку\n");
+    printf("6. Выход\n");
+    printf("Выберите действие: ");
+}
+
+void clear_input_buffer() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {}
+}
+
+int main() {
+    srand(time(NULL));
+    clean_grid();  //очищаем сетку
+    
+    int choice = 0;
+    do {
+        print_menu();
+        scanf("%d", &choice);
+        clear_input_buffer();
+        
+        switch(choice) {
+            case 1:
+                clean_grid(); //при 1 очищаем сетку
+                printf("Сетка очищена.\n");
+                break;
+            case 2:
+                add_word(); //при 2 добавляем слово
+                break;
+            case 3:
+                test_place_word();
+                break;
+            case 4:
+                confirm_place_word();
+                break;
+            case 5:
+                print_grid(); //эта процедера будет тупо отображать сетку сформированную в place_word
+                break;
+            case 6:
+                printf("Выход...\n");
+                break;
+            default:
+                printf("Цыфру сначало введи, але!\n");
+        }
+        
+    } while(choice != 6);
+    
+    return 0;
+}
