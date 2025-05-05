@@ -65,6 +65,48 @@ void add_word_to_list(const char *word) {
         strncpy(word_list[word_count++], word, MAX_WORD_LEN);
     }
 }
+int has_adjacent_word_conflict(const char *word, int x, int y, Direction dir) {
+    int len = strlen(word);
+
+    for (int i = 0; i < len; i++) {
+        int nx = x + (dir == HORIZONTAL ? i : 0);
+        int ny = y + (dir == VERTICAL ? i : 0);
+
+        // Проверяем: есть ли буква до начала слова
+        if (i == 0) {
+            int px = nx - (dir == HORIZONTAL ? 1 : 0);
+            int py = ny - (dir == VERTICAL ? 1 : 0);
+            if (px >= 0 && py >= 0 && px < GRID_SIZE && py < GRID_SIZE) {
+                if (grid[py][px] != ' ')
+                    return 1;
+            }
+        }
+
+        // Проверяем: есть ли буква после конца слова
+        if (i == len - 1) {
+            int sx = nx + (dir == HORIZONTAL ? 1 : 0);
+            int sy = ny + (dir == VERTICAL ? 1 : 0);
+            if (sx >= 0 && sy >= 0 && sx < GRID_SIZE && sy < GRID_SIZE) {
+                if (grid[sy][sx] != ' ')
+                    return 1;
+            }
+        }
+
+        // Проверка: нет ли двух подряд идущих букв по соседству (по другой оси)
+        int side1x = nx + (dir == VERTICAL ? 1 : 0);
+        int side1y = ny + (dir == HORIZONTAL ? 1 : 0);
+        int side2x = nx - (dir == VERTICAL ? 1 : 0);
+        int side2y = ny - (dir == HORIZONTAL ? 1 : 0);
+        if (side1x >= 0 && side1x < GRID_SIZE && side1y >= 0 && side1y < GRID_SIZE &&
+            side2x >= 0 && side2x < GRID_SIZE && side2y >= 0 && side2y < GRID_SIZE) {
+            if (grid[side1y][side1x] != ' ' && grid[side2y][side2x] != ' ')
+                return 1; // Пример: две буквы с обеих сторон — конфликт
+        }
+    }
+
+    return 0;
+}
+
 // int has_adjacent_crossing(const char *word, int x, int y, Direction dir) {
 //     int len = strlen(word);
 //     for (int i = 0; i < len; i++) {
@@ -140,7 +182,8 @@ int can_place(const char *word, int x, int y, Direction dir) {
     if (creates_filled_square(x, y, dir, word)){
         return 0;
     }
-        
+    if (has_adjacent_word_conflict(word, x, y, dir)) return 0;
+ 
     // if (has_adjacent_crossing(word, x, y, dir)){
     //     return 0;
     // }
