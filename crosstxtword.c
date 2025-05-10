@@ -2,10 +2,31 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 
-#define MAX_WORDS 100
-#define MAX_WORD_LEN 32
+#define MAX_WORDS 10000
+#define MAX_DICT_WORDS 10000
+#define MAX_WORD_LEN 100
 
+char *dictionary[MAX_DICT_WORDS];
+int dict_size = 0;
+
+void load_dictionary(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Не удалось открыть словарь");
+        exit(1);
+    }
+
+    char buffer[MAX_WORD_LEN];
+    while (fgets(buffer, sizeof(buffer), file) && dict_size < MAX_DICT_WORDS) {
+        buffer[strcspn(buffer, "\n")] = '\0'; // убрать \n
+        dictionary[dict_size] = strdup(buffer); // динамически копируем строку
+        dict_size++;
+    }
+
+    fclose(file);
+}
 typedef enum { HORIZONTAL, VERTICAL } Direction;
 
 typedef struct {
@@ -23,6 +44,9 @@ PlacedWord placed[MAX_WORDS];
 int placed_count = 0;
 int grid_size = 20;
 //Иициализация сетки
+
+
+
 void init_grid(int size) {
     if (grid) {
         for (int i = 0; i < grid_size; i++)
@@ -79,6 +103,22 @@ void add_word_to_list(const char *word) {
         strncpy(word_list[word_count++], word, MAX_WORD_LEN);
     }
 }
+void add_random_words_from_file(int count) {
+    if (count > dict_size) count = dict_size;
+    srand((unsigned int)time(NULL));
+
+    int used[MAX_DICT_WORDS] = {0};
+    for (int i = 0; i < count; ++i) {
+        int index;
+        do {
+            index = rand() % dict_size;
+        } while (used[index]);
+
+        used[index] = 1;
+        add_word(dictionary[index]);
+    }
+}
+ 
 // int has_adjacent_word_conflict(const char *word, int x, int y, Direction dir) {
 //     int len = strlen(word);
 
@@ -397,8 +437,26 @@ void menu() {
     }
 }
 
+void load_words_from_file(const char *filename, int count) {
+    FILE *f = fopen(filename, "r");
+    if (!f) {
+        perror("fopen");
+        exit(1);
+    }
+
+    word_count = 0;
+    while (fgets(word_list[word_count], MAX_WORD_LEN, f) && word_count < count) {
+        word_list[word_count][strcspn(word_list[word_count], "\n")] = 0;
+        for (int i = 0; word_list[word_count][i]; i++)
+            word_list[word_count][i] = toupper(word_list[word_count][i]);
+        word_count++;
+    }
+
+    fclose(f);
+}
+
 int main() {
-    int size;
+    int size, count;
     printf("Enter the grid size: ");
     scanf("%d", &size);
     getchar();
@@ -406,7 +464,14 @@ int main() {
         printf("Invalid size\n");
         return 1;
     }
+
+    printf("How many words to use from dictionary.txt? ");
+    scanf("%d", &count);
+    getchar();
+
     init_grid(size);
-    menu();
+    load_words_from_file("dictionary.txt", count);
+    auto_place_words_greedy();
+    print_grid();
     return 0;
 }
