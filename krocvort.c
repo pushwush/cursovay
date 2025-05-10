@@ -79,73 +79,53 @@ void add_word_to_list(const char *word) {
         strncpy(word_list[word_count++], word, MAX_WORD_LEN);
     }
 }
-// int has_adjacent_word_conflict(const char *word, int x, int y, Direction dir) {
-//     int len = strlen(word);
-
-//     for (int i = 0; i < len; i++) {
-//         int nx = x + (dir == HORIZONTAL ? i : 0);
-//         int ny = y + (dir == VERTICAL ? i : 0);
-
-//         // 1. Проверка на диагональные соседи (их вообще не должно быть)
-//         for (int dx = -1; dx <= 1; dx++) {
-//             for (int dy = -1; dy <= 1; dy++) {
-//                 if (dx == 0 && dy == 0) continue; // Пропустить саму клетку
-//                 int cx = nx + dx;
-//                 int cy = ny + dy;
-//                 if (cx >= 0 && cx < grid_size && cy >= 0 && cy < grid_size) {
-//                     if (grid[cy][cx] != ' ') {
-//                         // Разрешаем только пересечение по нужному направлению
-//                         if ((dir == HORIZONTAL && dx == 0) || (dir == VERTICAL && dy == 0)) {
-//                             if (grid[cy][cx] != word[i]) {
-//                                 return 1;
-//                             }
-//                         } else {
-//                             return 1;
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-
-//         // 2. Проверка начала слова (буква перед словом)
-//         if (i == 0) {
-//             int px = nx - (dir == HORIZONTAL ? 1 : 0);
-//             int py = ny - (dir == VERTICAL ? 1 : 0);
-//             if (px >= 0 && py >= 0 && px < grid_size && py < grid_size) {
-//                 if (grid[py][px] != ' ')
-//                     return 1;
-//             }
-//         }
-
-//         // 3. Проверка конца слова (буква после слова)
-//         if (i == len - 1) {
-//             int sx = nx + (dir == HORIZONTAL ? 1 : 0);
-//             int sy = ny + (dir == VERTICAL ? 1 : 0);
-//             if (sx >= 0 && sy >= 0 && sx < grid_size && sy < grid_size) {
-//                 if (grid[sy][sx] != ' ')
-//                     return 1;
-//             }
-//         }
-//     }
-
-//     return 0;
-// }
-
-int has_tail_conflict(const char *word, int x, int y, Direction dir) {
+int has_adjacent_word_conflict(const char *word, int x, int y, Direction dir) {
     int len = strlen(word);
 
-    // Проверка буквы ПЕРЕД началом слова
-    int px = x - (dir == HORIZONTAL ? 1 : 0);
-    int py = y - (dir == VERTICAL ? 1 : 0);
-    if (px >= 0 && py >= 0 && px < grid_size && py < grid_size) {
-        if (grid[py][px] != ' ') return 1;
-    }
+    for (int i = 0; i < len; i++) {
+        int nx = x + (dir == HORIZONTAL ? i : 0);
+        int ny = y + (dir == VERTICAL ? i : 0);
 
-    // Проверка буквы ПОСЛЕ окончания слова
-    int ex = x + (dir == HORIZONTAL ? len : 0);
-    int ey = y + (dir == VERTICAL ? len : 0);
-    if (ex >= 0 && ey >= 0 && ex < grid_size && ey < grid_size) {
-        if (grid[ey][ex] != ' ') return 1;
+        // 1. Проверка на диагональные соседи (их вообще не должно быть)
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                if (dx == 0 && dy == 0) continue; // Пропустить саму клетку
+                int cx = nx + dx;
+                int cy = ny + dy;
+                if (cx >= 0 && cx < grid_size && cy >= 0 && cy < grid_size) {
+                    if (grid[cy][cx] != ' ') {
+                        // Разрешаем только пересечение по нужному направлению
+                        if ((dir == HORIZONTAL && dx == 0) || (dir == VERTICAL && dy == 0)) {
+                            if (grid[cy][cx] != word[i]) {
+                                return 1;
+                            }
+                        } else {
+                            return 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Проверка начала слова (буква перед словом)
+        if (i == 0) {
+            int px = nx - (dir == HORIZONTAL ? 1 : 0);
+            int py = ny - (dir == VERTICAL ? 1 : 0);
+            if (px >= 0 && py >= 0 && px < grid_size && py < grid_size) {
+                if (grid[py][px] != ' ')
+                    return 1;
+            }
+        }
+
+        // 3. Проверка конца слова (буква после слова)
+        if (i == len - 1) {
+            int sx = nx + (dir == HORIZONTAL ? 1 : 0);
+            int sy = ny + (dir == VERTICAL ? 1 : 0);
+            if (sx >= 0 && sy >= 0 && sx < grid_size && sy < grid_size) {
+                if (grid[sy][sx] != ' ')
+                    return 1;
+            }
+        }
     }
 
     return 0;
@@ -228,8 +208,7 @@ int can_place(const char *word, int x, int y, Direction dir) {
     if (creates_filled_square(x, y, dir, word)){
         return 0;
     }
-    if (has_tail_conflict(word, x, y, dir)) return 0;
-
+    if (has_adjacent_word_conflict(word, x, y, dir)) return 0;
  
     // if (has_adjacent_crossing(word, x, y, dir)){
     //     return 0;

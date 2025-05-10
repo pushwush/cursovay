@@ -115,7 +115,7 @@ void add_random_words_from_file(int count) {
         } while (used[index]);
 
         used[index] = 1;
-        add_word(dictionary[index]);
+        add_word_to_list(dictionary[index]);
     }
 }
  
