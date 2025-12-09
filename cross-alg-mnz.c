@@ -8,6 +8,23 @@
 #define MAX_DICT_WORDS 10000
 #define MAX_WORD_LEN 100
 
+#define ALPHABET_SIZE 26
+#define MAX_LETTER_POS 20000
+typedef enum { HORIZONTAL, VERTICAL } Direction;
+typedef struct {
+    int x, y;
+    Direction dir;
+} LetterPos;
+
+LetterPos letter_positions[ALPHABET_SIZE][MAX_LETTER_POS];
+int letter_pos_count[ALPHABET_SIZE];
+
+void reset_letter_index(){
+    for (int i = 0; i < ALPHABET_SIZE; i++){
+        letter_pos_count[i]=0;
+    }
+}
+
 char *dictionary[MAX_DICT_WORDS];
 int dict_size = 0;
 
@@ -28,7 +45,7 @@ void load_dictionary(const char *filename) {
     fclose(file);
 }
 
-typedef enum { HORIZONTAL, VERTICAL } Direction;
+
 
 typedef struct {
     char word[MAX_WORD_LEN];
@@ -39,11 +56,40 @@ typedef struct {
 int grid_size;
 char **grid = NULL;
 char word_list[MAX_WORDS][MAX_WORD_LEN];
-int occupied[20][20] = {0}; // Занятость клеток словами
+
 
 int word_count = 0;
 PlacedWord placed[MAX_WORDS];
 int placed_count = 0;
+
+void index_word_letters(const char *word, int x, int y, Direction dir) {
+    int len = strlen(word);
+    for (int i = 0; i < len; i++) {
+        int nx = x + (dir == HORIZONTAL ? i : 0);
+        int ny = y + (dir == VERTICAL   ? i : 0);
+
+        char ch = word[i];
+        if (ch < 'A' || ch > 'Z') continue; // на всякий случай
+
+        int idx = ch - 'A';
+
+        int pos_index = letter_pos_count[idx];
+        if (pos_index >= MAX_LETTER_POS) {
+            // переполнение индекса — для курсовой можно просто предупредить
+            // или ничего не делать
+            continue;
+        }
+
+        letter_positions[idx][pos_index].x   = nx;
+        letter_positions[idx][pos_index].y   = ny;
+        letter_positions[idx][pos_index].dir = dir;
+
+        letter_pos_count[idx]++;
+    }
+}
+
+
+
 
 void init_grid(int size) {
     if (grid) {
@@ -137,38 +183,64 @@ int has_tail_conflict(const char *word, int x, int y, Direction dir) {
     return 0;
 }
 
-int creates_filled_square(int x, int y, Direction dir, const char *word) {
-    int len = strlen(word);
-    for (int i = 0; i < len; i++) {
-        int nx = x + (dir == HORIZONTAL ? i : 0);
-        int ny = y + (dir == VERTICAL ? i : 0);
-
-        // Проверка всех 4 возможных квадратов 2x2, куда входит эта клетка
-        for (int dy = -1; dy <= 0; dy++) {
-            for (int dx = -1; dx <= 0; dx++) {
-                int filled = 0;
-                for (int yy = 0; yy <= 1; yy++) {
-                    for (int xx = 0; xx <= 1; xx++) {
-                        int cx = nx + dx + xx;
-                        int cy = ny + dy + yy;
-                        if (cx < 0 || cx >= grid_size || cy < 0 || cy >= grid_size)
-                            continue;
-                        char c = grid[cy][cx];
-
-                        // учтём текущую вставляемую букву
-                        if (cx == nx && cy == ny)
-                            filled++;
-                        else if (c != ' ')
-                            filled++;
-                    }
-                }
-                if (filled == 4)
-                    return 1;
-            }
-        }
+// Вспомогательная функция: принадлежит ли клетка (cx, cy) новому слову
+int is_new_word_cell(int cx, int cy, int x, int y, Direction dir, int len) {
+    if (dir == HORIZONTAL) {
+        // горизонтальное слово идёт по строке y от x до x+len-1
+        if (cy == y && cx >= x && cx < x + len) return 1;
+    } else {
+        // вертикальное слово идёт по столбцу x от y до y+len-1
+        if (cx == x && cy >= y && cy < y + len) return 1;
     }
     return 0;
 }
+
+// Проверка: появится ли где-то полностью заполненный квадрат 2x2
+// после размещения ВСЕГО слова word в позиции (x, y) с направлением dir
+int creates_filled_square(int x, int y, Direction dir, const char *word) {
+    int len = strlen(word);
+
+    int dx = (dir == HORIZONTAL) ? 1 : 0;   
+    int dy = (dir == VERTICAL)   ? 1 : 0;
+
+    for (int i = 0; i < len; i++) {
+        int nx = x + dx * i;          
+        int ny = y + dy * i;
+
+        // Для клетки (nx, ny) проверяем все квадраты 2x2, куда она может входить
+        for (int ddy = -1; ddy <= 0; ddy++) {
+            for (int ddx = -1; ddx <= 0; ddx++) {
+                int sx = nx + ddx; // левый верхний угол квадрата 2x2
+                int sy = ny + ddy;
+                int filled = 0;
+
+                for (int yy = 0; yy <= 1; yy++) {
+                    for (int xx = 0; xx <= 1; xx++) {
+                        int cx = sx + xx;
+                        int cy = sy + yy;
+
+                        if (cx < 0 || cx >= grid_size || cy < 0 || cy >= grid_size)
+                            continue;
+
+                        if (is_new_word_cell(cx, cy, x, y, dir, len)) {
+                            filled++;
+                        } else if (grid[cy][cx] != ' ') {
+                            filled++;
+                        }
+                    }
+                }
+
+                if (filled == 4) {
+                    return 1;
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+
 
 int can_place(const char *word, int x, int y, Direction dir) {
     int len = strlen(word);
@@ -195,9 +267,8 @@ void place_word(const char *word, int x, int y, Direction dir) {
     int len = strlen(word);
     for (int i = 0; i < len; i++) {
         int nx = x + (dir == HORIZONTAL ? i : 0);
-        int ny = y + (dir == VERTICAL ? i : 0);
+        int ny = y + (dir == VERTICAL   ? i : 0);
         grid[ny][nx] = word[i];
-        occupied[ny][nx] = 1;
     }
 
     PlacedWord pw;
@@ -206,48 +277,70 @@ void place_word(const char *word, int x, int y, Direction dir) {
     pw.y = y;
     pw.dir = dir;
     placed[placed_count++] = pw;
+
+    // Новое: добавляем все буквы этого слова в индекс
+    index_word_letters(word, x, y, dir);
 }
 
+
+   
+
 int try_place_word(const char *word) {
-    int best_score = -1, best_x = 0, best_y = 0, best_dir = HORIZONTAL;
+    int best_score = -1;
+    int best_x = 0, best_y = 0;
+    Direction best_dir = HORIZONTAL;
     int len = strlen(word);
 
     if (placed_count == 0) {
-        return 0;  // Нельзя вставить первое слово без пересечений
+        return 0; // первое слово ставится отдельно в auto_place_words_greedy
     }
 
-    for (int pi = 0; pi < placed_count; pi++) {
-        const PlacedWord *pw = &placed[pi];
-        int plen = strlen(pw->word);
+    // Перебираем буквы нового слова
+    for (int i = 0; i < len; i++) {
+        char ch = word[i];
+        if (ch < 'A' || ch > 'Z') continue;
+        int idx = ch - 'A';
 
-        for (int i = 0; i < len; i++) {
-            for (int j = 0; j < plen; j++) {
-                if (word[i] != pw->word[j]) continue;
+        int count = letter_pos_count[idx];
+        // Перебираем все клетки, где эта буква уже стоит в сетке
+        for (int p = 0; p < count; p++) {
+            LetterPos lp = letter_positions[idx][p];
 
-                int x = pw->x + (pw->dir == HORIZONTAL ? j : 0) - (pw->dir == VERTICAL ? i : 0);
-                int y = pw->y + (pw->dir == VERTICAL ? j : 0) - (pw->dir == HORIZONTAL ? i : 0);
-                Direction dir = (pw->dir == HORIZONTAL ? VERTICAL : HORIZONTAL);
+            // Новое слово должно идти перпендикулярно существующему
+            Direction new_dir = (lp.dir == HORIZONTAL ? VERTICAL : HORIZONTAL);
 
-                if (!can_place(word, x, y, dir)) continue;
+            int x, y;
+            if (new_dir == HORIZONTAL) {
+                // новое слово горизонтально, буква word[i] в точке (lp.x, lp.y)
+                x = lp.x - i;
+                y = lp.y;
+            } else {
+                // новое слово вертикально
+                x = lp.x;
+                y = lp.y - i;
+            }
 
-                int score = 0;
-                for (int k = 0; k < len; k++) {
-                    int nx = x + (dir == HORIZONTAL ? k : 0);
-                    int ny = y + (dir == VERTICAL ? k : 0);
-                    if (grid[ny][nx] == word[k]) score++;
-                }
+            if (!can_place(word, x, y, new_dir)) continue;
 
-                if (score > best_score || best_score == -1) {
-                    best_score = score;
-                    best_x = x;
-                    best_y = y;
-                    best_dir = dir;
-                }
+            // Оцениваем "качество" варианта: сколько букв пересекается
+            int score = 0;
+            for (int k = 0; k < len; k++) {
+                int nx = x + (new_dir == HORIZONTAL ? k : 0);
+                int ny = y + (new_dir == VERTICAL   ? k : 0);
+                if (nx < 0 || ny < 0 || nx >= grid_size || ny >= grid_size) continue;
+                if (grid[ny][nx] == word[k]) score++;
+            }
+
+            if (score > best_score) {
+                best_score = score;
+                best_x = x;
+                best_y = y;
+                best_dir = new_dir;
             }
         }
     }
 
-    if (best_score > 0) { // пересечение должно быть хотя бы одно
+    if (best_score > 0) {
         place_word(word, best_x, best_y, best_dir);
         return 1;
     }
@@ -259,6 +352,7 @@ int try_place_word(const char *word) {
 void auto_place_words_greedy() {
     clear_grid();
     placed_count = 0;
+    reset_letter_index();
 
     if (word_count == 0) return;
 
@@ -272,6 +366,7 @@ void auto_place_words_greedy() {
         }
     }
 }
+
 
 void save_to_file(const char *filename) {
     FILE *f = fopen(filename, "w");
@@ -348,8 +443,7 @@ void load_words_from_file(const char *filename, int count) {
         exit(1);
     }
 
-    // Инициализация генератора случайных чисел
-    srand((unsigned int)time(NULL));
+
 
     // Буфер для чтения слов
     char buffer[MAX_WORD_LEN];
@@ -394,13 +488,12 @@ void load_words_from_file(const char *filename, int count) {
 
 int main() {
     int size, count;
+
+    srand((unsigned int)time(NULL));
+
     printf("Enter the grid size: ");
     scanf("%d", &size);
     getchar();
-    if (size <= 0 || size > 501) {
-        printf("Invalid size\n");
-        return 1;
-    }
 
     printf("How many words to use from dictionary.txt? ");
     scanf("%d", &count);
@@ -408,9 +501,19 @@ int main() {
 
     init_grid(size);
     load_words_from_file("dictionary.txt", count);
+
+    // замеряем только генерацию кроссворда
+    clock_t start = clock();
     auto_place_words_greedy();
-    print_grid();
-    menu(); // Добавляем вызов меню после генерации кроссворда
+    clock_t end = clock();
+
+    double seconds = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Generation time: %.6f seconds\n", seconds);
+
+    // print_grid();  // на время исследований можно отключить
+
+    menu(); 
     return 0;
 }
+
 
